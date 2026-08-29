@@ -64,6 +64,24 @@ Os testes não usam proxies reais. A arquitetura aceita `MockProxySource` e `Moc
 
 Hospede o web em Vercel ou qualquer host Node, PostgreSQL em Neon/Supabase/PostgreSQL gerenciado e o worker em Railway, Render, Fly.io ou VPS. Execute `prisma migrate deploy` antes do rollout. O worker precisa de processo persistente; verificações pesadas não rodam em funções serverless.
 
+### Supabase
+
+Use a connection string PostgreSQL fornecida pelo Supabase como `DATABASE_URL`. Prefira o pooler em modo de sessão para o worker. Nunca salve a URL em arquivos versionados. Depois de cadastrar a variável no ambiente:
+
+```bash
+npm run db:migrate
+npm run db:check
+npm run maintenance
+```
+
+`db:check` confirma conexão, migrations e contagens sem imprimir credenciais. Após o primeiro abastecimento, execute-o novamente para confirmar as 500 proxies ativas persistidas.
+
+### Vercel e worker
+
+O `vercel.json` configura somente o site e as APIs leves. Cadastre na Vercel `DATABASE_URL`, `APP_TIMEZONE`, `TARGET_PROXY_STOCK`, `MAX_PROXY_GENERATION`, `API_RATE_LIMIT`, `ADMIN_PASSWORD`, `SESSION_SECRET` e os thresholds de qualidade. Não execute a manutenção na Vercel.
+
+O `Dockerfile.worker` e o `render.yaml` preparam o processo persistente separado. Cadastre nele `DATABASE_URL`, `PROXY_VALIDATION_URL` e as variáveis de manutenção. O worker executa o cron e consome os pedidos manuais do painel.
+
 ## Segurança e limites conhecidos
 
 - Sessão admin assinada, cookie `httpOnly`, `secure` em produção e `sameSite=strict`.

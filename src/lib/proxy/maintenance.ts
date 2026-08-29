@@ -70,7 +70,14 @@ export async function runMaintenance(source: ProxySource, checker: ProxyChecker)
           if (!result.success || activeCount >= config.TARGET_PROXY_STOCK) continue;
           const proxy = await db.proxy.upsert({
             where: { protocol_ip_port: { protocol: candidate.protocol, ip: candidate.ip, port: candidate.port } },
-            create: { ...candidate, sourceLatencyMs: candidate.sourceLatency, sourceLastCheckedAt: candidate.sourceLastChecked, status: "ACTIVE", latencyMs: result.latencyMs, successfulChecks: 1, lastCheckedAt: new Date(), lastSuccessfulCheckAt: new Date() },
+            create: {
+              ip: candidate.ip, port: candidate.port, protocol: candidate.protocol, source: candidate.source,
+              country: candidate.country, countryCode: candidate.countryCode, city: candidate.city,
+              isp: candidate.isp, anonymity: candidate.anonymity, sourceLatencyMs: candidate.sourceLatency,
+              sourceUptime: candidate.sourceUptime, sourceLastCheckedAt: candidate.sourceLastChecked,
+              status: "ACTIVE", latencyMs: result.latencyMs, successfulChecks: 1,
+              lastCheckedAt: new Date(), lastSuccessfulCheckAt: new Date()
+            },
             update: { status: "ACTIVE", latencyMs: result.latencyMs, cooldownUntil: null, consecutiveFailures: 0, lastCheckedAt: new Date(), lastSuccessfulCheckAt: new Date(), successfulChecks: { increment: 1 } }
           });
           await db.proxyCheck.create({ data: { proxyId: proxy.id, success: true, latencyMs: result.latencyMs } });
