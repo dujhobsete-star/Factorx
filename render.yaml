@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: factorx-proxys-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.worker
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PROXY_VALIDATION_URL
+        sync: false
+      - key: APP_TIMEZONE
+        value: America/Sao_Paulo
+      - key: TARGET_PROXY_STOCK
+        value: 500
+      - key: PROXY_MAINTENANCE_CRON
+        value: 0 3 * * *
