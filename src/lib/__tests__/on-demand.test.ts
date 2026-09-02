@@ -30,6 +30,11 @@ describe("on demand",()=>{
     const result=await validateOnDemand(candidates,{limit:1},{check},c.signal);
     expect(check).not.toHaveBeenCalled();expect(result.timedOut).toBe(true);
   });
+  it("never exceeds the candidate test budget",async()=>{
+    const many=Array.from({length:700},(_,i)=>({...candidates[0],port:10000+i}));
+    const result=await validateOnDemand(many,{limit:23},{check:async()=>({success:false})},new AbortController().signal);
+    expect(result.tested).toBe(600);
+  });
   it("filters protocol and tolerates checker exceptions",async()=>{
     const check=vi.fn(async()=>{throw new Error("offline")});
     const result=await validateOnDemand(candidates,{limit:1,protocol:"SOCKS5"},{check},new AbortController().signal);

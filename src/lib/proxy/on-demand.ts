@@ -47,7 +47,7 @@ export async function validateOnDemand(candidates: ProxyCandidate[], options: Ge
   const proxies: { id: string; ip: string; port: number; protocol: string; countryCode?: string; brVerified: boolean; latencyMs?: number; lastCheckedAt: string }[] = [];
   let tested = 0;
   for (let i = 0; i < Math.min(filtered.length, 600) && !signal.aborted && proxies.length < target;) {
-    const batch = filtered.slice(i, i + Math.min(24, target - proxies.length));
+    const batch = filtered.slice(i, Math.min(600, i + Math.min(24, target - proxies.length)));
     i += batch.length;
     const results = await Promise.all(batch.map(async candidate => {
       tested++;
