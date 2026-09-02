@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, Copy, Globe2, RefreshCw, ShieldCheck, Zap } from "lucide-react";
+import { buildNamedProfile, factorXName, proxyAddress } from "@/lib/proxy/export";
 
 type ProxyItem = { id:string; ip:string; port:number; protocol:string; countryCode?:string; latencyMs?:number; lastCheckedAt:string; brVerified:boolean };
 export default function Home() {
@@ -19,7 +20,14 @@ export default function Home() {
     const timer=setInterval(()=>setElapsed(v=>v+1),1000);
     return()=>clearInterval(timer);
   },[loading]);
-  const address=(p:ProxyItem)=>`${withProtocol?p.protocol.toLowerCase()+"://":""}${p.ip}:${p.port}`;
+  const address=(p:ProxyItem)=>proxyAddress(p,withProtocol);
+  const namedProfile=buildNamedProfile(items);
+  function downloadNamed() {
+    if(!namedProfile.count)return;
+    const url=URL.createObjectURL(new Blob([namedProfile.text],{type:"application/yaml;charset=utf-8"}));
+    const link=document.createElement("a");link.href=url;link.download="factor-x-mihomo.yaml";link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   async function generate() {
     setLoading(true);setElapsed(0);setItems([]);setMessage("");
     const query=new URLSearchParams({limit,quality,...(country&&{country}),...(protocol&&{protocol})});
@@ -48,6 +56,15 @@ export default function Home() {
     </div><p>O pedido leva até aproximadamente 50 segundos. Podemos entregar menos que o solicitado se não houver aprovadas suficientes. O filtro Brasil exige confirmação da localização de saída.</p>
       {loading&&<p role="status">Buscando candidatas e fazendo testes reais. Não feche esta página.</p>}
       {message&&<div className="results" role="status"><p>{message}</p></div>}
+      {items.length>0&&<section className="named-export" aria-label="Exportar com nome Factor X">
+        <h3>NOME FACTOR X NO SEU CLIENTE</h3>
+        <p>Para clientes baseados em Mihomo (Clash Meta), importe o perfil abaixo. Cada proxy aparece com o nome <b>Factor X</b>, sem alterar IP, porta ou autenticação.</p>
+        <div className="actions"><button className="button" disabled={!namedProfile.count} onClick={downloadNamed}>BAIXAR PERFIL FACTOR X</button><button className="button ghost" disabled={!namedProfile.count} onClick={()=>copy(namedProfile.text,"profile")}>{copied==="profile"?"PERFIL COPIADO":"COPIAR PERFIL MIHOMO"}</button></div>
+        <p>{namedProfile.count} proxies compatíveis neste perfil. {namedProfile.omitted>0&&`${namedProfile.omitted} não incluídas: esta exportação aceita HTTP e SOCKS5, sem converter HTTPS ou SOCKS4.`}</p>
+        <details><summary>Como usar e limitações</summary><p>Importe o arquivo factor-x-mihomo.yaml como um novo perfil em um cliente Mihomo e selecione a proxy no grupo Factor X. O arquivo usa JSON, uma representação válida de YAML. Ao ativar o perfil, o tráfego encaminhado ao cliente usará a proxy selecionada; preserve seu perfil anterior. Não ativamos nada automaticamente.</p><p>Nos demais clientes, use COPIAR ou COPIAR TODAS para obter somente os endereços. Não cole o perfil em campos IP:porta. O nome é um rótulo local: não é cookie, senha, rastreamento nem prova de propriedade das proxies públicas. A disponibilidade pode mudar após o teste.</p><p><a href="https://wiki.metacubex.one/en/config/proxies/http/" target="_blank" rel="noreferrer">Formato HTTP Mihomo</a> · <a href="https://wiki.metacubex.one/en/config/proxies/socks/" target="_blank" rel="noreferrer">Formato SOCKS5 Mihomo</a></p></details>
+        {namedProfile.count>0&&<details><summary>Ver perfil com nomes</summary><pre>{namedProfile.text}</pre></details>}
+        <span className="proxy-name-example">Exemplo de nome: {factorXName(items[0])}</span>
+      </section>}
       {items.length>0&&<div className="results"><div className="results-head"><span>{items.length} APROVADAS NESTE PEDIDO <em>· FACTOR X</em></span><label><input type="checkbox" checked={withProtocol} onChange={e=>setWithProtocol(e.target.checked)}/> INCLUIR PROTOCOLO</label><button onClick={()=>copy(items.map(address).join("\n"),"all")}>{copied==="all"?<Check size={15}/>:<Copy size={15}/>} COPIAR TODAS</button></div>{items.map(p=><div className="proxy-row" key={p.id}><span className="flag">{p.countryCode||"--"}</span><code>{p.ip}:{p.port}</code><span>{p.protocol}</span><span>{p.latencyMs??"--"} MS</span><span className="online" title={`Testada em ${new Date(p.lastCheckedAt).toLocaleString("pt-BR")}`}><i/> {p.brVerified?"BR VERIFICADA":"TESTADA AGORA"}</span><button onClick={()=>copy(address(p),p.id)}>{copied===p.id?<Check size={15}/>:<Copy size={15}/>} {copied===p.id?"COPIADO":"COPIAR"}</button></div>)}</div>}
     </div></section>
     {copied&&<div className="copy-toast"><Check size={16}/><div><b>PROXY COPIADA</b><span>FACTOR X // PROXYS</span></div></div>}
