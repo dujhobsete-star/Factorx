@@ -15,11 +15,11 @@ enum ProxyProtocol {
 }
 
 enum ProxyStatus {
-  NEW
+  PENDING  @map("NEW")
   TESTING
   ACTIVE
   FAILED
-  COOLDOWN
+  INACTIVE @map("COOLDOWN")
 }
 
 enum MaintenanceStatus {
@@ -35,18 +35,27 @@ enum JobStatus {
   FAILED
 }
 
+enum SourceStatus {
+  HEALTHY
+  DEGRADED
+  COOLDOWN
+  UNAVAILABLE
+}
+
 model Proxy {
   id                    String        @id @default(cuid())
   ip                    String
   port                  Int
   protocol              ProxyProtocol
+  username              String?
+  password              String?
   country               String?
   countryCode           String?
   city                  String?
   isp                   String?
   anonymity             String?
   source                String
-  status                ProxyStatus   @default(NEW)
+  status                ProxyStatus   @default(PENDING)
   latencyMs             Int?
   sourceLatencyMs       Int?
   sourceUptime          Float?
@@ -59,15 +68,51 @@ model Proxy {
   consecutiveFailures   Int           @default(0)
   successfulChecks      Int           @default(0)
   failedChecks          Int           @default(0)
+  lastError              String?
+  exitIp                 String?
+  countryReported        String?
+  countryVerified        String?
+  countryVerifiedAt      DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   checks                ProxyCheck[]
+  sourceRecords          ProxySourceRecord[]
 
   @@unique([protocol, ip, port])
   @@index([status])
   @@index([protocol])
   @@index([countryCode])
   @@index([cooldownUntil])
+}
+
+model ProxySourceRecord {
+  id          String   @id @default(cuid())
+  proxyId     String
+  source      String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  proxy       Proxy    @relation(fields: [proxyId], references: [id], onDelete: Cascade)
+
+  @@unique([proxyId, source])
+  @@index([source])
+}
+
+model ProxySourceHealth {
+  name                String       @id
+  status              SourceStatus @default(HEALTHY)
+  lastAttemptAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  cooldownUntil       DateTime?
+  consecutiveFailures Int          @default(0)
+  candidatesFetched   Int          @default(0)
+  candidatesParsed    Int          @default(0)
+  candidatesBR        Int          @default(0)
+  candidatesPassed    Int          @default(0)
+  averageLatencyMs    Int?
+  requestDurationMs   Int?
+  lastError           String?
+  updatedAt           DateTime     @updatedAt
 }
 
 model ProxyCheck {
@@ -91,6 +136,11 @@ model ProxyMaintenanceRun {
   failedCount         Int               @default(0)
   newCandidatesTested Int               @default(0)
   newProxiesAdded     Int               @default(0)
+  candidatesCollected Int              @default(0)
+  uniqueCandidates    Int               @default(0)
+  rejectedCandidates  Int               @default(0)
+  sourceMetrics       Json?
+  durationMs          Int?
   finalActiveCount    Int               @default(0)
   status              MaintenanceStatus @default(RUNNING)
   errorMessage        String?

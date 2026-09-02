@@ -1,6 +1,7 @@
 import { ProxyProtocol } from "@prisma/client";
 import { config } from "../config";
 import type { ProxyCandidate, ProxySource } from "./types";
+import { parseProxyLine } from "./parser";
 
 type SourceRow = Record<string, unknown>;
 
@@ -28,14 +29,7 @@ export function normalizeProxyScrape(row: SourceRow): ProxyCandidate | null {
 }
 
 export function normalizeProxyScrapeLine(line: string): ProxyCandidate | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-  try {
-    const parsed = new URL(trimmed);
-    return normalizeProxyScrape({ protocol: parsed.protocol.replace(":", ""), ip: parsed.hostname, port: parsed.port });
-  } catch {
-    return null;
-  }
+  return parseProxyLine(line, "proxyscrape");
 }
 
 export class ProxyScrapeSource implements ProxySource {

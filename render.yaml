@@ -13,5 +13,23 @@ services:
         value: America/Sao_Paulo
       - key: TARGET_PROXY_STOCK
         value: 500
+      - key: TARGET_COUNTRY
+        value: BR
+      - key: MAX_CANDIDATES_PER_CYCLE
+        value: 2500
+      - key: SOURCE_FETCH_TIMEOUT_MS
+        value: 15000
+      - key: SOURCE_COOLDOWN_MINUTES
+        value: 30
+      - key: MAX_SOURCE_FAILURES
+        value: 3
+      - key: ACTIVE_RECHECK_INTERVAL_MINUTES
+        value: 180
+      - key: PROXY_TEST_BATCH_SIZE
+        value: 20
+      - key: PROXY_TEST_CONCURRENCY
+        value: 10
+      - key: PROXY_DB_CONCURRENCY
+        value: 10
       - key: PROXY_MAINTENANCE_CRON
         value: 0 3 * * *

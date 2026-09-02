@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
+    "build": "next build",
     "start": "next start",
     "worker": "tsx worker/index.ts",
     "lint": "eslint .",
@@ -14,6 +15,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:check": "tsx scripts/check-db.ts",
+    "db:crud-check": "tsx scripts/check-db-crud.ts",
+    "db:proxy-report": "tsx scripts/proxy-report.ts",
+    "sources:audit": "tsx scripts/source-audit.ts",
     "maintenance": "tsx worker/run-once.ts"
   },
   "dependencies": {

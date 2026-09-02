@@ -8,7 +8,9 @@ Aplicação full-stack para coletar candidatas de fontes abertas, validar por re
 - **Worker:** Node/TypeScript separado; executa o cron diário e consome solicitações manuais.
 - **Dados:** PostgreSQL + Prisma. A constraint `(protocol, ip, port)` impede duplicatas.
 - **Core:** fontes, normalização, checker e motor de manutenção ficam em `src/lib/proxy`.
-- **Fontes em cascata:** ProxyScrape API é a principal; Relayglass e Proxifly entram como fallback. O sistema interrompe a coleta ao atingir o limite de candidatas e sempre executa sua própria validação.
+- **Fontes progressivas:** Relayglass BR, Databay BR, ProxyScrape BR, Proxifly BR, IPLocate BR, FineProxy BR, Stormsia, Monosans, Proxmint, GProxy, HProxy BR, JetKai e PRXCHK. Cada adaptador falha de forma isolada, entra em cooldown após falhas repetidas e a coleta para no limite global de 2.500 candidatas.
+- **Brasil verificado:** o país informado pela fonte é preservado separadamente do país confirmado pelo IP de saída. Somente proxies `ACTIVE` com `countryVerified=BR` contam para o alvo brasileiro.
+- **Saúde das fontes:** duração, volume coletado, volume BR, aprovações, falhas e cooldown ficam persistidos em `ProxySourceHealth`; atribuições múltiplas ficam em `ProxySourceRecord`.
 - **Lock:** advisory lock PostgreSQL impede dois ciclos simultâneos entre instâncias.
 
 O ciclo retesta somente o estoque atual, preserva sobreviventes, coloca falhas em cooldown e busca candidatas em lotes apenas enquanto `ACTIVE < TARGET_PROXY_STOCK`. Ao alcançar o alvo, encerra. O primeiro ciclo com banco vazio funciona como preenchimento inicial.
@@ -38,7 +40,7 @@ O worker permanece ativo, agenda `PROXY_MAINTENANCE_CRON` na timezone `APP_TIMEZ
 npm run maintenance
 ```
 
-Use um endpoint de validação controlado que responda HTTP 2xx/3xx com payload pequeno; o sistema não depende do conteúdo da resposta. A URL `httpbin.org/ip` no exemplo é somente um padrão de desenvolvimento e não é recomendada como dependência única de produção. `PROXY_SOURCE_URL` permite trocar a fonte principal sem alterar código.
+Use um endpoint de validação controlado que responda HTTP 2xx/3xx e revele o IP de saída. A URL `httpbin.org/ip` no exemplo é somente um padrão de desenvolvimento e não é recomendada como dependência única de produção. A geolocalização é feita depois do teste real e não transforma falha do serviço geográfico em falso negativo de conectividade.
 
 ## APIs
 
@@ -74,13 +76,13 @@ npm run db:check
 npm run maintenance
 ```
 
-`db:check` confirma conexão, migrations e contagens sem imprimir credenciais. Após o primeiro abastecimento, execute-o novamente para confirmar as 500 proxies ativas persistidas.
+`db:check` confirma conexão, migrations e contagens sem imprimir credenciais. `db:proxy-report` mostra estoque, latência, país verificado e saúde das fontes sem imprimir secrets.
 
 ### Vercel e worker
 
 O `vercel.json` configura somente o site e as APIs leves. Cadastre na Vercel `DATABASE_URL`, `APP_TIMEZONE`, `TARGET_PROXY_STOCK`, `MAX_PROXY_GENERATION`, `API_RATE_LIMIT`, `ADMIN_PASSWORD`, `SESSION_SECRET` e os thresholds de qualidade. Não execute a manutenção na Vercel.
 
-O `Dockerfile.worker` e o `render.yaml` preparam o processo persistente separado. Cadastre nele `DATABASE_URL`, `PROXY_VALIDATION_URL` e as variáveis de manutenção. O worker executa o cron e consome os pedidos manuais do painel.
+O `Dockerfile.worker` e o `render.yaml` preparam o processo persistente separado. Cadastre nele `DATABASE_URL`, `PROXY_VALIDATION_URL` e as variáveis de manutenção. O worker executa o cron, recupera jobs abandonados após reinício e consome os pedidos manuais do painel. O frontend e as APIs leves podem permanecer na Vercel; os testes massivos não devem rodar em função serverless.
 
 ## Segurança e limites conhecidos
 
@@ -89,7 +91,7 @@ O `Dockerfile.worker` e o `render.yaml` preparam o processo persistente separado
 - O rate limit V1 é por instância e em memória, adequado a implantação única. Em escala horizontal, substitua por armazenamento compartilhado.
 - `TRUST_PROXY_HEADERS=false` por padrão. Habilite apenas atrás de proxy reverso conhecido que sobrescreva os headers do cliente.
 - Proxies públicas não são garantidas como seguras, privadas, residenciais ou anônimas.
-- A integração depende do schema JSON publicado pelo repositório ProxyScrape; falhas são registradas e o estoque sobrevivente não é apagado.
+- Fontes públicas mudam, ficam vazias ou bloqueiam requisições. Cada adaptador registra sua própria saúde; uma indisponibilidade não derruba o ciclo nem apaga o estoque sobrevivente.
 
 ## Troubleshooting
 

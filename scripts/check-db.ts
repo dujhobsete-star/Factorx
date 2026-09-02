@@ -11,6 +11,16 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify({ ok: false, error: error instanceof Error ? error.message.split("\n")[0] : "database_check_failed" }));
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : "UNKNOWN";
+  const message = error instanceof Error
+    ? error.message
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.includes("DATABASE_URL") && !line.includes("postgresql://") && !line.startsWith("Invalid `"))
+        .at(-1)
+    : undefined;
+  console.error(JSON.stringify({ ok: false, code, error: message ?? "database_check_failed" }));
   process.exitCode = 1;
 }).finally(() => db.$disconnect());
