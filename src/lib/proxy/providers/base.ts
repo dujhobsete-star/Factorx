@@ -36,11 +36,11 @@ export abstract class EndpointProvider implements ProxySource {
   abstract name: string;
   protected abstract endpoints: ProviderEndpoint[];
 
-  async fetchCandidates(): Promise<ProxyCandidate[]> {
+  async fetchCandidates(options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<ProxyCandidate[]> {
     const candidates: ProxyCandidate[] = []; const errors: string[] = [];
     for (const endpoint of this.endpoints) {
       try {
-        const response = await fetch(endpoint.url, { signal: AbortSignal.timeout(config.SOURCE_FETCH_TIMEOUT_MS), headers: { "user-agent": "FactorX-Proxys/1.0" } });
+        const response = await fetch(endpoint.url, { signal: AbortSignal.any([AbortSignal.timeout(options.timeoutMs ?? config.SOURCE_FETCH_TIMEOUT_MS), ...(options.signal ? [options.signal] : [])]), cache: "no-store", headers: { "user-agent": "FactorX-Proxys/1.0" } });
         if (!response.ok) throw new Error(`HTTP_${response.status}`);
         if (endpoint.format === "text") {
           for (const line of (await response.text()).split(/\r?\n/)) {

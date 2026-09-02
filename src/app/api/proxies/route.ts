@@ -1,27 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ProxyProtocol } from "@prisma/client";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { config } from "@/lib/config";
+import { generateOnDemand } from "@/lib/proxy/on-demand";
 import { rateLimit } from "@/lib/rate-limit";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 const schema = z.object({
-  country: z.string().length(2).transform((value) => value.toUpperCase()).optional(), protocol: z.nativeEnum(ProxyProtocol).optional(),
-  limit: z.coerce.number().int().min(1).optional().default(10), page: z.coerce.number().int().min(1).optional().default(1),
-  quality: z.enum(["ALL", "GOOD", "EXCELLENT"]).optional().default("ALL"), format: z.enum(["json", "text"]).optional().default("json"),
+  country: z.string().regex(/^[a-z]{2}$/i).transform(v => v.toUpperCase()).optional(),
+  protocol: z.enum(["HTTP", "HTTPS", "SOCKS4", "SOCKS5"]).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  quality: z.enum(["ALL", "GOOD", "EXCELLENT"]).default("ALL"),
+  format: z.enum(["json", "text"]).default("json"),
 });
+let running = 0;
 export async function GET(request: NextRequest) {
-  const ip = config.TRUST_PROXY_HEADERS === "true" ? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : request.headers.get("x-real-ip") ?? "unknown";
-  if (!rateLimit(ip ?? "unknown")) return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429 });
   const parsed = schema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
-  if (!parsed.success) return NextResponse.json({ error: "invalid_query", details: parsed.error.flatten().fieldErrors }, { status: 400 });
-  const { country, protocol, quality, format, page } = parsed.data; const limit = Math.min(parsed.data.limit, config.MAX_PROXY_GENERATION, 50);
-  const latencyMs = quality === "EXCELLENT" ? { lte: config.EXCELLENT_LATENCY_MS } : quality === "GOOD" ? { lte: config.GOOD_LATENCY_MS } : undefined;
-  const where = { status: "ACTIVE" as const, ...(country ? { countryVerified: country } : {}), ...(protocol ? { protocol } : {}), ...(latencyMs ? { latencyMs } : {}) };
-  const [rows,total] = await Promise.all([
-    db.proxy.findMany({ where, select: { id:true,ip:true,port:true,protocol:true,country:true,countryVerified:true,latencyMs:true,lastCheckedAt:true }, orderBy:[{latencyMs:"asc"},{id:"asc"}], skip:(page-1)*limit,take:limit }),
-    db.proxy.count({ where }),
-  ]);
-  if(format==="text") return new NextResponse(rows.map(p=>`${p.protocol.toLowerCase()}://${p.ip}:${p.port}`).join("\n"),{headers:{"content-type":"text/plain; charset=utf-8","cache-control":"no-store"}});
-  return NextResponse.json({proxies:rows.map(p=>({...p,countryCode:p.countryVerified,brVerified:p.countryVerified==="BR"})),count:rows.length,total,page,pages:Math.ceil(total/limit)},{headers:{"cache-control":"no-store"}});
+  if (!parsed.success) return NextResponse.json({ error: "invalid_query" }, { status: 400 });
+  const ip = request.headers.get("x-vercel-forwarded-for")?.split(",")[0] ?? request.headers.get("x-real-ip") ?? "unknown";
+  if (!rateLimit(`generate:${ip}`, 3) || running >= 2) return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429, headers: { "Retry-After": "60" } });
+  running++;
+  try {
+    const result = await generateOnDemand(parsed.data, request.signal);
+    const headers = { "Cache-Control": "no-store" };
+    if (parsed.data.format === "text") return new NextResponse(result.proxies.map(p => `${p.protocol.toLowerCase()}://${p.ip}:${p.port}`).join("\n"), { headers: { ...headers, "Content-Type": "text/plain; charset=utf-8", "X-Proxy-Count": String(result.count) } });
+    return NextResponse.json(result, { headers });
+  } catch {
+    return NextResponse.json({ error: "generation_unavailable" }, { status: 503 });
+  } finally { running--; }
 }
