@@ -8,6 +8,20 @@ export function factorXName(proxy: ExportProxy) {
   return `Factor X | ${proxy.protocol} | ${proxy.ip}:${proxy.port}`;
 }
 
+// Dolphin's documented address syntax has no display-name suffix.
+// Keep names separate and only export explicitly documented proxy types.
+export function dolphinEntries(items: ExportProxy[]) {
+  const unique = new Map<string, { name: string; address: string }>();
+  for (const proxy of items) {
+    if (!["HTTP", "SOCKS4", "SOCKS5"].includes(proxy.protocol)) continue;
+    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(proxy.ip) || proxy.ip.split(".").some(n => Number(n) > 255)) continue;
+    if (!Number.isInteger(proxy.port) || proxy.port < 1 || proxy.port > 65535) continue;
+    const address = proxyAddress(proxy);
+    unique.set(address, { name: factorXName(proxy), address });
+  }
+  return [...unique.values()];
+}
+
 // Mihomo uses a separate name field. Never put branding in credentials or host.
 // JSON is a YAML-compatible representation and safely escapes all string values.
 export function buildNamedProfile(items: ExportProxy[]) {

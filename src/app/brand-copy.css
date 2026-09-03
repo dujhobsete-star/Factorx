@@ -12,6 +12,10 @@
 .named-export a { color: #ff6a00; text-decoration: underline; }
 .named-export button:disabled { opacity: .4; cursor: not-allowed; }
 .named-export .actions { flex-wrap: wrap; }
+.dolphin-entry { padding: 16px 0; border-bottom: 1px solid #282018; }
+.dolphin-entry code, .dolphin-entry > span { display: block; overflow-wrap: anywhere; margin-bottom: 10px; }
+.dolphin-entry > span { color: #ff6a00; font-size: 12px; }
+.dolphin-entry .button { min-width: 0; padding: 12px; font-size: 10px; }
 .proxy-name-example { display: block; margin-top: 14px; color: #ff6a00; font-size: 11px; overflow-wrap: anywhere; }
 
 .copy-toast {

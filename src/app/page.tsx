@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, Copy, Globe2, RefreshCw, ShieldCheck, Zap } from "lucide-react";
-import { buildNamedProfile, factorXName, proxyAddress } from "@/lib/proxy/export";
+import { buildNamedProfile, dolphinEntries, factorXName, proxyAddress } from "@/lib/proxy/export";
 
 type ProxyItem = { id:string; ip:string; port:number; protocol:string; countryCode?:string; latencyMs?:number; lastCheckedAt:string; brVerified:boolean };
 export default function Home() {
@@ -22,6 +22,13 @@ export default function Home() {
   },[loading]);
   const address=(p:ProxyItem)=>proxyAddress(p,withProtocol);
   const namedProfile=buildNamedProfile(items);
+  const dolphin=dolphinEntries(items);
+  function downloadDolphin() {
+    if(!dolphin.length)return;
+    const url=URL.createObjectURL(new Blob([dolphin.map(p=>p.address).join("\n")+"\n"],{type:"text/plain;charset=utf-8"}));
+    const link=document.createElement("a");link.href=url;link.download="factor-x-dolphin.txt";link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   function downloadNamed() {
     if(!namedProfile.count)return;
     const url=URL.createObjectURL(new Blob([namedProfile.text],{type:"application/yaml;charset=utf-8"}));
@@ -57,17 +64,24 @@ export default function Home() {
       {loading&&<p role="status">Buscando candidatas e fazendo testes reais. Não feche esta página.</p>}
       {message&&<div className="results" role="status"><p>{message}</p></div>}
       {items.length>0&&<section className="named-export" aria-label="Exportar com nome Factor X">
-        <h3>NOME FACTOR X NO SEU CLIENTE</h3>
+        <h3>USAR NO DOLPHIN ANTY</h3>
+        <p>Copie o endereço para o campo de proxy e o nome Factor X para o campo de nome, separadamente. Não adicionamos login ou senha às proxies públicas.</p>
+        <div className="actions"><button className="button" disabled={!dolphin.length} onClick={downloadDolphin}>BAIXAR TXT PARA DOLPHIN</button><button className="button ghost" disabled={!dolphin.length} onClick={()=>copy(dolphin.map(p=>p.address).join("\n"),"dolphin-all")}>{copied==="dolphin-all"?"ENDEREÇOS COPIADOS":"COPIAR ENDEREÇOS DOLPHIN"}</button></div>
+        <p>{dolphin.length} endereços nos formatos HTTP, SOCKS4 e SOCKS5. {items.length>dolphin.length&&"HTTPS não é convertido automaticamente: escolha HTTP ou SOCKS no filtro para esta opção."} O TXT contém somente endereços; os nomes são copiados abaixo.</p>
+        <details open><summary>Endereços e nomes Factor X</summary>{dolphin.map(p=><div className="dolphin-entry" key={p.address}><code>{p.address}</code><span>{p.name}</span><div className="actions"><button className="button ghost" onClick={()=>copy(p.address,`dolphin-${p.address}`)}>{copied===`dolphin-${p.address}`?"COPIADO":"COPIAR ENDEREÇO"}</button><button className="button ghost" onClick={()=>copy(p.name,`name-${p.address}`)}>{copied===`name-${p.address}`?"NOME COPIADO":"COPIAR NOME FACTOR X"}</button></div></div>)}</details>
+        <details><summary>Como colocar no Dolphin</summary><p>Na tela Proxy do Dolphin, escolha Add Proxy / Adicionar proxy. Cole um endereço, use a verificação de conexão e salve. Para editar os dados e o nome, clique no nome da proxy salva. Use COPIAR NOME FACTOR X no campo de nome. Repita para as demais proxies.</p><p>Não cole o nome no campo de endereço nem nos campos login/senha. Este site não instala proxies automaticamente no Dolphin. O nome é apenas um rótulo local, não um cookie ou autenticação. Teste novamente no Dolphin: a conexão do seu computador pode ter um resultado diferente.</p><a href="https://docs.dolphin-anty.com/en/working-with-proxies/how-to-add-a-proxy-in-dolphin-anty" target="_blank" rel="noreferrer">Guia oficial do Dolphin</a></details>
+        <details><summary>Outro cliente: exportar perfil Mihomo / Clash Meta</summary>
         <p>Para clientes baseados em Mihomo (Clash Meta), importe o perfil abaixo. Cada proxy aparece com o nome <b>Factor X</b>, sem alterar IP, porta ou autenticação.</p>
         <div className="actions"><button className="button" disabled={!namedProfile.count} onClick={downloadNamed}>BAIXAR PERFIL FACTOR X</button><button className="button ghost" disabled={!namedProfile.count} onClick={()=>copy(namedProfile.text,"profile")}>{copied==="profile"?"PERFIL COPIADO":"COPIAR PERFIL MIHOMO"}</button></div>
         <p>{namedProfile.count} proxies compatíveis neste perfil. {namedProfile.omitted>0&&`${namedProfile.omitted} não incluídas: esta exportação aceita HTTP e SOCKS5, sem converter HTTPS ou SOCKS4.`}</p>
         <details><summary>Como usar e limitações</summary><p>Importe o arquivo factor-x-mihomo.yaml como um novo perfil em um cliente Mihomo e selecione a proxy no grupo Factor X. O arquivo usa JSON, uma representação válida de YAML. Ao ativar o perfil, o tráfego encaminhado ao cliente usará a proxy selecionada; preserve seu perfil anterior. Não ativamos nada automaticamente.</p><p>Nos demais clientes, use COPIAR ou COPIAR TODAS para obter somente os endereços. Não cole o perfil em campos IP:porta. O nome é um rótulo local: não é cookie, senha, rastreamento nem prova de propriedade das proxies públicas. A disponibilidade pode mudar após o teste.</p><p><a href="https://wiki.metacubex.one/en/config/proxies/http/" target="_blank" rel="noreferrer">Formato HTTP Mihomo</a> · <a href="https://wiki.metacubex.one/en/config/proxies/socks/" target="_blank" rel="noreferrer">Formato SOCKS5 Mihomo</a></p></details>
         {namedProfile.count>0&&<details><summary>Ver perfil com nomes</summary><pre>{namedProfile.text}</pre></details>}
         <span className="proxy-name-example">Exemplo de nome: {factorXName(items[0])}</span>
+        </details>
       </section>}
       {items.length>0&&<div className="results"><div className="results-head"><span>{items.length} APROVADAS NESTE PEDIDO <em>· FACTOR X</em></span><label><input type="checkbox" checked={withProtocol} onChange={e=>setWithProtocol(e.target.checked)}/> INCLUIR PROTOCOLO</label><button onClick={()=>copy(items.map(address).join("\n"),"all")}>{copied==="all"?<Check size={15}/>:<Copy size={15}/>} COPIAR TODAS</button></div>{items.map(p=><div className="proxy-row" key={p.id}><span className="flag">{p.countryCode||"--"}</span><code>{p.ip}:{p.port}</code><span>{p.protocol}</span><span>{p.latencyMs??"--"} MS</span><span className="online" title={`Testada em ${new Date(p.lastCheckedAt).toLocaleString("pt-BR")}`}><i/> {p.brVerified?"BR VERIFICADA":"TESTADA AGORA"}</span><button onClick={()=>copy(address(p),p.id)}>{copied===p.id?<Check size={15}/>:<Copy size={15}/>} {copied===p.id?"COPIADO":"COPIAR"}</button></div>)}</div>}
     </div></section>
-    {copied&&<div className="copy-toast"><Check size={16}/><div><b>PROXY COPIADA</b><span>FACTOR X // PROXYS</span></div></div>}
+    {copied&&<div className="copy-toast" role="status"><Check size={16}/><div><b>{copied.startsWith("name-")?"NOME COPIADO":copied==="profile"?"PERFIL COPIADO":"ENDEREÇO(S) COPIADO(S)"}</b><span>FACTOR X // PROXYS</span></div></div>}
     <section className="section network" id="network"><div className="section-tag">{"// PUBLIC NETWORK"}</div><h2>SEM ESTOQUE.<br/><span>TESTE NO SEU PEDIDO.</span></h2><p>As listas das fontes são reutilizadas por até 5 minutos em cada instância do servidor. Após esse prazo, o próximo pedido busca listas novas. Não há coleta contínua nem dependência de um computador ligado.</p><p>ProxyScrape, Relayglass, Proxifly e Monosans. Se uma fonte falhar, tentamos as demais. Uma lista recente não garante que suas proxies estejam funcionando: por isso testamos antes da entrega.</p></section>
     <section className="section how" id="how"><div className="section-tag">{"// ON-DEMAND PIPELINE"}</div><h2>VOCÊ GERA.<br/><span>A FACTORX FAZ O RESTO.</span></h2><div className="steps">{[["01","BUSCAMOS","Consultamos fontes públicas e removemos duplicatas."],["02","TESTAMOS","Cada candidata precisa passar por uma requisição real."],["03","ENTREGAMOS","Somente aprovadas, até a quantidade que você pediu."],["04","RENOVAMOS","Listas temporárias expiram. Novos pedidos fazem novos testes."]].map(([n,t,d])=><div className="step" key={n}><i>{n}</i><div className="step-icon">{n==="01"?<Globe2/>:n==="02"?<ShieldCheck/>:<RefreshCw/>}</div><h3>{t}</h3><p>{d}</p></div>)}</div></section>
     <footer><a className="brand" href="#top"><span>FACTOR</span><b>X</b></a><p>Proxies sob demanda</p><div><a href="/terms">Termos</a><a href="/privacy">Privacidade</a></div><small>Um teste aprovado não garante funcionamento futuro, anonimato ou acesso a qualquer site. Nunca envie senhas ou dados sensíveis por proxies públicas. Serviço sujeito aos limites gratuitos e à disponibilidade das fontes.</small></footer>
